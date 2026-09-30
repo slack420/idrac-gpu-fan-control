@@ -1,0 +1,17 @@
+[Unit]
+Description=iDRAC GPU Fan Control - GPU + CPU driven fan curve for a passthrough GPU
+After=network-online.target pve-cluster.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gpu-fan-curve.sh
+# If the service stops for any reason, hand the fans back to iDRAC automatic control
+ExecStopPost=/usr/bin/ipmitool raw 0x30 0x30 0x01 0x01
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
