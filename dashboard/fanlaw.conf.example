@@ -1,0 +1,20 @@
+# /etc/fanlaw/fanlaw.conf  (root only: chmod 600)
+#
+# The dashboard reads the curve and VMID / VM_IP / VM_USER / SSH_KEY from
+# /usr/local/bin/gpu-fan-curve.sh, so normally only [idrac] is needed here.
+#
+# host: the iDRAC's IP address or hostname
+# user: a Read Only iDRAC user (iDRAC Settings > User Authentication), not root
+
+[idrac]
+host = CHANGE_ME
+user = CHANGE_ME
+password = CHANGE_ME
+# iDRAC uses a self-signed certificate; leave this off unless you installed a real one
+verify_tls = no
+
+# Optional: only if the dashboard should use different VM details than the script.
+# [vm]
+# host = 192.168.1.50
+# user = gamer
+# key = /root/.ssh/gpu_fan_key

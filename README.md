@@ -4,7 +4,7 @@ Temperature-driven fan control for Dell PowerEdge servers (iDRAC7 / iDRAC8) runn
 
 iDRAC can't see a consumer GPU's temperature. This runs on the Proxmox host, reads the GPU temperature from inside the VM over SSH, reads the CPU temperature from iDRAC, and drives the server fans over IPMI, following whichever part needs more air.
 
-See [CHANGELOG.md](CHANGELOG.md) for what changed in 2.0.
+There's also an optional read-only web dashboard, [Fanlaw](#optional-fanlaw-dashboard). See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ## Why
 
@@ -242,6 +242,50 @@ ipmitool sdr | grep -i pwr                 # whole-server power draw
 ipmitool raw 0x30 0x30 0x01 0x01           # hand the fans back to iDRAC right now
 ```
 
+## Optional: Fanlaw dashboard
+
+![Fanlaw dashboard](screenshots/fanlaw.png)
+
+A read-only web page for the fan script, served from the Proxmox host on port 8787. It shows what the script decided and why: live GPU and CPU temperatures on the curve, the fan command and which part is driving it, all six fan RPMs, inlet and exhaust, GPU load, power and clocks, a 24-hour trace, and the script's journal.
+
+It never sets a fan speed and never edits the script. It also never runs `ipmitool` or `qm`, so it can't compete with the script for iDRAC. An earlier version polled `ipmitool` alongside the script, and the script's own CPU read occasionally came back empty ("CPU temperature unreadable"). The script failed safe each time, but a dashboard shouldn't touch the cooling path at all, so every reading now comes from somewhere else:
+
+| Reading | Source | How often |
+|---|---|---|
+| Fan command, votes, decisions | The fan script's journal | As the script logs |
+| CPU temperatures | `coretemp` in `/sys/class/hwmon` (no IPMI) | Every second |
+| GPU temperature, load, power, clocks, VRAM | One SSH session that stays open, streaming `nvidia-smi` | Every 2 seconds |
+| Fan RPMs, inlet, exhaust, iDRAC CPU temps | iDRAC Redfish over the network, with a read-only account | Right after each fan change, then every 30 seconds |
+| VM running or stopped | The GPU stream answering, otherwise the script's last log line | Live |
+
+The curve values and `VMID` / `VM_IP` / `VM_USER` / `SSH_KEY` are read from `/usr/local/bin/gpu-fan-curve.sh` at startup, so there's nothing to keep in sync. Restart the dashboard after retuning the script.
+
+**Requirements:** the fan script installed and configured as above, Python 3 (already on Proxmox), Intel CPUs (for `coretemp`), and an iDRAC with Redfish reachable from the host. Tested on iDRAC8 firmware 2.86.86.86.
+
+**Install.** First create a **Read Only** user in the iDRAC web UI (iDRAC Settings → User Authentication → Local Users). Then, from the cloned repo:
+
+```bash
+mkdir -p /etc/fanlaw
+install -m 600 dashboard/fanlaw.conf.example /etc/fanlaw/fanlaw.conf
+nano /etc/fanlaw/fanlaw.conf      # iDRAC host, the read-only user and its password
+install -m 755 dashboard/fanlaw-dash.py /usr/local/bin/fanlaw-dash.py
+install -m 644 dashboard/fanlaw-dash.service /etc/systemd/system/fanlaw-dash.service
+systemctl daemon-reload
+systemctl enable --now fanlaw-dash.service
+journalctl -u fanlaw-dash.service -n 20
+```
+
+Open `http://<proxmox-host>:8787`. The Diagnostics card shows how old each feed is and any errors. To check Redfish by hand: `curl -sk -u USER:PASS https://<idrac>/redfish/v1/Chassis/System.Embedded.1/Thermal`.
+
+**Preview without touching anything:** `python3 dashboard/fanlaw-dash.py --file /tmp/demo.log --demo --port 8788` (create the empty log first) serves a fake server with moving data.
+
+**Notes:**
+
+- It listens on every interface with no login. Everything on it is read-only, but keep it on your LAN, or pass `--listen <ip>` in the unit file.
+- History is kept in `/var/lib/fanlaw/history.jsonl`, trimmed to 24 hours.
+- Windows OpenSSH doesn't end a remote command when the connection drops, so a looping `nvidia-smi` would be left running in the VM after every reconnect. The dashboard ends its own leftovers (the ones started with `-l`/`-lms`) when it starts, after each reconnect, and when it stops. The fan script's one-shot queries are never touched.
+- When the VM shuts down while the fans are steady, the script may not log "VM off" until its next 5-minute heartbeat, so the page can show the GPU as unreadable for a few minutes. Display only.
+
 ## Optional: Dell's third-party PCIe fan response
 
 If iDRAC runs the fans loud whenever a non-Dell PCIe card is installed, this is why. While the script is running it doesn't matter, because manual mode overrides it, but it makes boot and any service downtime loud.
@@ -258,6 +302,14 @@ systemctl disable --now gpu-fan-curve.service
 rm /etc/systemd/system/gpu-fan-curve.service /usr/local/bin/gpu-fan-curve.sh
 systemctl daemon-reload
 ipmitool raw 0x30 0x30 0x01 0x01
+```
+
+If you installed the dashboard:
+
+```bash
+systemctl disable --now fanlaw-dash.service
+rm -r /etc/systemd/system/fanlaw-dash.service /usr/local/bin/fanlaw-dash.py /etc/fanlaw /var/lib/fanlaw
+systemctl daemon-reload
 ```
 
 If you used the legacy `-PowerLimit` option, remove its task in the Windows VM with:

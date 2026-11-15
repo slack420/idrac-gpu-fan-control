@@ -4,6 +4,29 @@ All notable changes to this project.
 
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.1.0] - 2026-11-15
+
+The fan script is unchanged from 2.0.0.
+
+### Added
+
+- **Fanlaw, an optional read-only web dashboard** (`dashboard/`). It shows the
+  script's decisions alongside live sensor data: GPU and CPU on the curve, the fan
+  command and what's driving it, fan RPMs, inlet and exhaust, GPU load and power,
+  a 24-hour trace and the journal. See the README section for install.
+
+  It never sets fans and never runs `ipmitool` or `qm`. An earlier, unreleased
+  version polled `ipmitool` alongside the script, and the script's own CPU read
+  occasionally came back empty (`CPU temperature unreadable`, failing safe to
+  `BLIND_FAN` for one pass). The released dashboard reads CPU temperatures from
+  `coretemp`, the GPU from a single long-lived `nvidia-smi` SSH stream, and fan
+  RPMs, inlet and exhaust from iDRAC Redfish over the network.
+
+  It's also far lighter. Measured on the author's R730: the earlier version's
+  service used about 18% of one CPU core and peaked at 155 MB; the released
+  dashboard's process uses about 0.14% of one core and 41 MB (plus one open SSH
+  session and one `journalctl` follower).
+
 ## [2.0.0] - 2026-11-15
 
 Rewrite of the control logic. The fan curves, the ramp-down, the logging and the
