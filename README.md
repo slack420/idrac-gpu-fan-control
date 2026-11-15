@@ -282,7 +282,7 @@ Behind all of that, both the CPU and GPU throttle and ultimately shut themselves
 
 ## About this project
 
-I'm not a coder. I built this over about a week with Claude (Anthropic's AI) writing most of the code. My part was the hardware, the testing, the measurements, and pushing back whenever an answer didn't match what the server actually did, which happened more than once. Everything described here was tested on my R730. Read the script before you run it: it's short, commented, and it controls your server's cooling.
+I'm not a coder, and AI wrote the code. Version 1.0 took about a week, mostly with Claude (Anthropic), with other AIs helping. The 2.0 rewrite used Claude, Grok (xAI) and Gemini (Google), and no single one of them did most of it. My part was the hardware, the testing, the measurements, and never trusting any of it: I pushed back whenever an answer didn't match what the server actually did, which happened more than once. Everything described here was tested on my R730. Read the script before you run it: it's short, commented, and it controls your server's cooling.
 
 ## License
 
